@@ -1,8 +1,8 @@
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 
 from e_commerce.Services.product_services import ProductHasOrderItemsError, ProductNotFoundError, create_product, delete_product, get_product_or_raise, update_product
 from e_commerce.database.session import session_factory
-from e_commerce.mcp.context import model_dict
+from e_commerce.mcp.context import confirmation_result, model_dict
 from e_commerce.schemas.schema import ProductCreate, ProductUpdate
 
 
@@ -33,10 +33,16 @@ def register_product_tools(mcp: FastMCP) -> None:
                 return {"success": False, "error": "PRODUCT_NOT_FOUND"}
 
     @mcp.tool
-    async def delete_product_tool(product_id: int, confirmed: bool) -> dict:
-        """Delete a product; pass confirmed=true to confirm if it has no order items."""
-        if not confirmed:
-            return {"success": False, "error": "OPERATION_NOT_CONFIRMED"}
+    async def delete_product_tool(product_id: int, ctx: Context):
+        """Ask for confirmation before deleting a product."""
+        confirmation = confirmation_result(
+            ctx,
+            f"product_id: {product_id}",
+            "Do you want to delete this product?",
+        )
+        if confirmation is not True:
+            return confirmation
+
         async with session_factory() as db:
             try:
                 product = await get_product_or_raise(product_id, db)

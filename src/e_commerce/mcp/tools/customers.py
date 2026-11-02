@@ -1,11 +1,10 @@
-from fastmcp import FastMCP , Context
+from fastmcp import Context, FastMCP
 
 from e_commerce.Services.customer_services import CustomerHasOrdersError, CustomerNotFoundError, create_customer, delete_customer, get_customer_or_raise, update_customer
 from e_commerce.database.session import session_factory
-from e_commerce.mcp.context import model_dict
+from e_commerce.mcp.context import confirmation_result, model_dict
 from e_commerce.schemas.schema import Customer, CustomerUpdate
-from e_commerce.app import logger
-from e_commerce.mcp.server import ask_user 
+
 
 def register_customer_tools(mcp: FastMCP) -> None:
     @mcp.tool
@@ -35,21 +34,15 @@ def register_customer_tools(mcp: FastMCP) -> None:
 
     @mcp.tool
     async def delete_customer_tool(customer_id: int, ctx: Context):
-        """Delete a customer; pass confirmed=true to confirm. Customers with orders cannot be deleted."""
-        logger.info("select_query called")
-        responses = ctx.input_responses
+        """Ask for confirmation before deleting a customer."""
+        confirmation = confirmation_result(
+            ctx,
+            f"customer_id: {customer_id}",
+            "Do you want to delete this customer?",
+        )
+        if confirmation is not True:
+            return confirmation
 
-        if responses is None or "confirm_query" not in responses:
-            return ask_user(customer_id, "Do you want to delete the customer with id  ?")
-
-        response = responses["confirm_query"]
-        if response.action != "accept":
-            return "Query is Cancel by User"
-
-        content = response.content or {}
-        if content.get("confirmed", False) is not True:
-            logger.info("User Does not confirmed query")
-            return "Query Cancel the query"
         async with session_factory() as db:
             try:
                 customer = await get_customer_or_raise(customer_id, db)
