@@ -1,77 +1,61 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from e_commerce.database import database_model
-from e_commerce.database.database import get_db
+from e_commerce.database.session import get_db
 from e_commerce.schemas.schema import ProductCreate, ProductResponse, ProductUpdate
+from e_commerce.Services.product_services import (
+    ProductHasOrderItemsError, ProductNotFoundError, create_product,
+    delete_product, get_product_or_raise, update_product,
+)
 
 router = APIRouter()
+DatabaseSession = Annotated[AsyncSession, Depends(get_db)]
 
 
-@router.get("/{product_id}", response_model=ProductResponse, status_code=status.HTTP_200_OK)
-async def get_product(product_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(select(database_model.Product).where(database_model.Product.id == product_id))
-    existing_product = result.scalars().first()
-    if not existing_product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product Not Found")
-    return ProductResponse.model_validate(existing_product)
+def not_found(product_id: int) -> HTTPException:
+    return HTTPException(status_code=404, detail=f"Product with id {product_id} does not exist")
+
+
+@router.get("/{product_id}", response_model=ProductResponse)
+async def get_product(product_id: int, db: DatabaseSession):
+    try:
+        product = await get_product_or_raise(product_id, db)
+    except ProductNotFoundError:
+        raise not_found(product_id) from None
+    return ProductResponse.model_validate(product)
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-async def add_product(product: ProductCreate, db: Annotated[AsyncSession, Depends(get_db)]):
-    new_product = database_model.Product(
-        name=product.name,
-        price=product.price,
-        description=product.description,
-    )
-    db.add(new_product)
-    await db.commit()
-    await db.refresh(new_product)
-    return ProductResponse.model_validate(new_product)
+async def add_product(product: ProductCreate, db: DatabaseSession):
+    try:
+        created = await create_product(product, db)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="A product with this name already exists") from None
+    return ProductResponse.model_validate(created)
 
 
 @router.patch("/patch/{product_id}", response_model=ProductResponse)
-async def update_product(
-    product_id: int,
-    update_schema: ProductUpdate,
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    result = await db.execute(select(database_model.Product).where(database_model.Product.id == product_id))
-    existing_product = result.scalars().first()
-    if not existing_product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Product with id {product_id} does not exist",
-        )
-
-    for field, value in update_schema.model_dump(exclude_unset=True, exclude_none=True).items():
-        setattr(existing_product, field, value)
-
-    await db.commit()
-    await db.refresh(existing_product)
-    return ProductResponse.model_validate(existing_product)
+async def update_product_route(product_id: int, update_schema: ProductUpdate, db: DatabaseSession):
+    try:
+        product = await get_product_or_raise(product_id, db)
+        updated = await update_product(product, update_schema, db)
+    except ProductNotFoundError:
+        raise not_found(product_id) from None
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="A product with this name already exists") from None
+    return ProductResponse.model_validate(updated)
 
 
 @router.delete("/delete/{product_id}", response_model=ProductResponse)
-async def delete_product(product_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(select(database_model.Product).where(database_model.Product.id == product_id))
-    existing_product = result.scalars().first()
-    if not existing_product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product Not Found")
-
-    order_items = await db.execute(
-        select(database_model.OrderIteams.id).where(database_model.OrderIteams.product_id == product_id)
-    )
-    if order_items.scalars().first() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete a product that is used by order items",
-        )
-
-    deleted_product = ProductResponse.model_validate(existing_product)
-    await db.delete(existing_product)
-    await db.commit()
-    return deleted_product
+async def delete_product_route(product_id: int, db: DatabaseSession):
+    try:
+        product = await get_product_or_raise(product_id, db)
+        deleted = await delete_product(product, db)
+    except ProductNotFoundError:
+        raise not_found(product_id) from None
+    except ProductHasOrderItemsError:
+        raise HTTPException(status_code=409, detail="Cannot delete a product used by order items") from None
+    return ProductResponse.model_validate(deleted)

@@ -1,9 +1,16 @@
 from fastapi import FastAPI
-from e_commerce.database.database import engine 
-from e_commerce.database.database_model import Base
+# from e_commerce.database.database import engine 
+from e_commerce.database.model import Base
 from contextlib import asynccontextmanager
+import asyncpg
+from typing import Optional
 
 from e_commerce.routers import customer, order, order_item, product
+from e_commerce.database.engine import engine
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app_:FastAPI):
