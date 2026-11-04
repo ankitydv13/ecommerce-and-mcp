@@ -23,7 +23,7 @@ register_schema_resource(mcp)
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    mcp.run(transport="http", host="127.0.0.1", port=8000)
+    mcp.run(transport="http", host="127.0.0.1", port=8001)
 
 
 if __name__ == "__main__":

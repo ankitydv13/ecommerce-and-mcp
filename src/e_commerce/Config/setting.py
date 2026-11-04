@@ -8,7 +8,7 @@ class Setting(BaseSettings):
     DB_PORT : int = 5432
     DB_NAME : str = "ecommerce"
     DB_USER : str = "postgres"
-    DB_PASSWORD :  str = "Cfg@1234567"
+    DB_PASSWORD :  str = "postgres"
 
     model_config = SettingsConfigDict(env_file=".env" , extra="ignore") 
 
