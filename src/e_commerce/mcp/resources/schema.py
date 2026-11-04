@@ -1,5 +1,8 @@
 from fastmcp import FastMCP
+from pathlib import Path
+from fastmcp.resources import FileResource
 
+file_path = Path(r"D:\ecommerce\src\e_commerce\mcp\model.txt").resolve()
 
 def register_schema_resource(mcp: FastMCP) -> None:
     @mcp.resource("ecommerce://schema")
@@ -12,3 +15,5 @@ def register_schema_resource(mcp: FastMCP) -> None:
 - order_items: id, order_id, product_id, quantity
 Relationships: customer has orders; orders have order_items; products can appear in order_items.
 """
+
+
