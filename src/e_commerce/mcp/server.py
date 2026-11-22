@@ -26,20 +26,20 @@ register_order_item_tools(mcp)
 register_schema_resource(mcp)
 
 if file_path.exists:
-            model_resource= FileResource(
+    model_resource= FileResource(
                 uri=f"file://{file_path.as_posix()}",
                 path = file_path,
                 name = "Model File",
                 description = "This file tell the database model",
                 mime_type = "text",
-                tag = {"model document"}
+                tags = {"model document"}
             )
-        mcp.add_resource(model_resource)
+    mcp.add_resource(model_resource)
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    mcp.run(transport="http", host="127.0.0.1", port=8001)
+    mcp.run(transport="http", host="127.0.0.1", port=8003)
 
 
 if __name__ == "__main__":

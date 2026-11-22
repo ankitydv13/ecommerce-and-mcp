@@ -64,3 +64,34 @@ class OrderItems(Base):
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_order_items_quantity_positive"),
     )
+
+
+class User(Base):
+    __tablename__ = "users"
+    id : Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name : Mapped[int] = mapped_column(String,nullable=False)
+    hash_password : Mapped[int] = mapped_column(String,nullable=False)
+    created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now(UTC) , nullable=False)
+
+class ChatSession(Base):
+    __tablename__ = "chat_session"
+
+    user_id : Mapped[int] = mapped_column(Integer,ForeignKey("users.id"),nullable=False)
+    title : Mapped[str] = mapped_column(String, nullable=False)
+    session_id : Mapped[str] = mapped_column(String , primary_key=True )
+    created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now(UTC) )
+    updated_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now(UTC) )
+
+class ChatMessages(Base):
+    __tablename__ = "chat_messages"
+
+    messages_id : Mapped[int] = mapped_column(Integer, primary_key=True )
+    session_id : Mapped[str] = mapped_column(String , ForeignKey("chat_session.session_id") , nullable=False )
+    role : Mapped[str] = mapped_column(String , nullable=False)
+    content : Mapped[str] = mapped_column(Text,nullable=False)
+    created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now())
+
+
+
+
+
