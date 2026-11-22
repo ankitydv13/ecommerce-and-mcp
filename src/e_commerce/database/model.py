@@ -73,7 +73,7 @@ class User(Base):
     name : Mapped[int] = mapped_column(String(100),nullable=False)
     hash_password : Mapped[int] = mapped_column(String(255),nullable=False)
     created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now(UTC) , nullable=False)
-    chat_session : Mapped[list["ChatSession"]] = relationship(back_populates="users", cascade="all delete-orphan")
+    chat_session : Mapped[list["ChatSession"]] = relationship(back_populates="users", cascade="all, delete-orphan")
 
 class ChatSession(Base):
     __tablename__ = "chat_session"
