@@ -75,4 +75,14 @@ class OrderItemResponse(BaseModel):
     quantity: int
 
     model_config = ConfigDict(from_attributes=True)
-    
+
+class Token(BaseModel):
+    access_token : str
+    token_type : str
+
+class Signup(BaseModel):
+    username : str = Field(min_length=1,max_length=20)
+    name : str = Field(min_length=1 , max_length=30)
+    hash_password : str = Field(min_length=8 , max_length=30)
+
+    #TODO : add more validation like no special character in the name , password 

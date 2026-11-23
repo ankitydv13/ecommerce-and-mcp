@@ -1,5 +1,5 @@
 import uuid
-from src.e_commerce.database  import model
+from e_commerce.database  import model
 from typing import Annotated
 
 async def new_session(user_id:int,db):

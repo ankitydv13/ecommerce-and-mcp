@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import asyncpg
 from typing import Optional
 
-from e_commerce.routers import customer, order, order_item, product
+from e_commerce.routers import customer, order, order_item, product , chats , auth
 from e_commerce.database.engine import engine
 
 import logging
@@ -27,3 +27,5 @@ app.include_router(customer.router,prefix="/api/customer",tags=["Customer"])
 app.include_router(order.router,prefix="/api/order",tags=["Order"])
 app.include_router(product.router,prefix="/api/product",tags=["Product"])
 app.include_router(order_item.router,prefix="/api/order-item",tags=["Order Item"])
+app.include_router(chats.router,prefix="/api/chats",tags=["chats"])
+app.include_router(auth.router,prefix="/api/auth", tags=["auth"])

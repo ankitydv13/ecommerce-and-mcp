@@ -70,10 +70,11 @@ class OrderItems(Base):
 class User(Base):
     __tablename__ = "users"
     id : Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name : Mapped[int] = mapped_column(String(100),nullable=False)
-    hash_password : Mapped[int] = mapped_column(String(255),nullable=False)
+    username : Mapped[str] = mapped_column(String(40),unique=True,nullable=False)
+    name : Mapped[str] = mapped_column(String(100),nullable=False)
+    hash_password : Mapped[str] = mapped_column(String(255),nullable=False)
     created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now(UTC) , nullable=False)
-    chat_session : Mapped[list["ChatSession"]] = relationship(back_populates="users", cascade="all, delete-orphan")
+    chat_session : Mapped[list["ChatSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 class ChatSession(Base):
     __tablename__ = "chat_session"
@@ -90,7 +91,7 @@ class ChatMessages(Base):
     __tablename__ = "chat_messages"
 
     messages_id : Mapped[int] = mapped_column(Integer, primary_key=True ,autoincrement=True)
-    session_id : Mapped[str] = mapped_column(String , ForeignKey("chat_session.session_id",ondelete="CASCADE") , nullable=False )
+    session_id : Mapped[uuid.UUID] = mapped_column(ForeignKey("chat_session.session_id",ondelete="CASCADE") , nullable=False )
     role : Mapped[str] = mapped_column(String(20) , nullable=False)
     content : Mapped[str] = mapped_column(Text,nullable=False)
     created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now())
