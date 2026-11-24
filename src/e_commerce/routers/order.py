@@ -3,6 +3,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from e_commerce.Services.AuthServices import get_current_user
+from e_commerce.Services.authorization_services import (
+    ensure_customer_access,
+    ensure_order_access,
+)
 from e_commerce.Services.order_services import (
     CustomerNotFoundForOrderError, OrderHasItemsError, OrderNotFoundError,
     create_order, delete_order, get_order_or_raise, update_order,
@@ -23,7 +28,12 @@ def customer_not_found() -> HTTPException:
 
 
 @router.get("/{order_id}", response_model=OrderResponse)
-async def get_order(order_id: int, db: DatabaseSession):
+async def get_order(
+    order_id: int,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    await ensure_order_access(order_id, user_id, db)
     try:
         order = await get_order_or_raise(order_id, db)
     except OrderNotFoundError:
@@ -32,7 +42,12 @@ async def get_order(order_id: int, db: DatabaseSession):
 
 
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
-async def add_order(order: OrderCreate, db: DatabaseSession):
+async def add_order(
+    order: OrderCreate,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    await ensure_customer_access(order.customer_id, user_id, db)
     try:
         created = await create_order(order, db)
     except CustomerNotFoundForOrderError:
@@ -41,7 +56,15 @@ async def add_order(order: OrderCreate, db: DatabaseSession):
 
 
 @router.patch("/patch/{order_id}", response_model=OrderResponse)
-async def update_order_route(order_id: int, update_schema: OrderUpdate, db: DatabaseSession):
+async def update_order_route(
+    order_id: int,
+    update_schema: OrderUpdate,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    await ensure_order_access(order_id, user_id, db)
+    if update_schema.customer_id is not None:
+        await ensure_customer_access(update_schema.customer_id, user_id, db)
     try:
         order_entity = await get_order_or_raise(order_id, db)
         updated = await update_order(order_entity, update_schema, db)
@@ -53,7 +76,12 @@ async def update_order_route(order_id: int, update_schema: OrderUpdate, db: Data
 
 
 @router.delete("/delete/{order_id}", response_model=OrderResponse)
-async def delete_order_route(order_id: int, db: DatabaseSession):
+async def delete_order_route(
+    order_id: int,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    await ensure_order_access(order_id, user_id, db)
     try:
         order = await get_order_or_raise(order_id, db)
         deleted = await delete_order(order, db)

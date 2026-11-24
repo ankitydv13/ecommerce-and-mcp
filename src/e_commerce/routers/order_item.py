@@ -3,6 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from e_commerce.Services.AuthServices import get_current_user
+from e_commerce.Services.authorization_services import ensure_order_access
 from e_commerce.Services.order_item_services import (
     OrderItemNotFoundError, OrderNotFoundForItemError, ProductNotFoundForItemError,
     create_order_item, delete_order_item, get_order_item_or_raise, update_order_item,
@@ -25,16 +27,26 @@ def reference_not_found(error: Exception) -> HTTPException:
 
 
 @router.get("/{order_item_id}", response_model=OrderItemResponse)
-async def get_order_item(order_item_id: int, db: DatabaseSession):
+async def get_order_item(
+    order_item_id: int,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
     try:
         item = await get_order_item_or_raise(order_item_id, db)
     except OrderItemNotFoundError:
         raise not_found(order_item_id) from None
+    await ensure_order_access(item.order_id, user_id, db)
     return OrderItemResponse.model_validate(item)
 
 
 @router.post("", response_model=OrderItemResponse, status_code=status.HTTP_201_CREATED)
-async def add_order_item(order_item: OrderItemCreate, db: DatabaseSession):
+async def add_order_item(
+    order_item: OrderItemCreate,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    await ensure_order_access(order_item.order_id, user_id, db)
     try:
         created = await create_order_item(order_item, db)
     except (OrderNotFoundForItemError, ProductNotFoundForItemError) as error:
@@ -47,9 +59,13 @@ async def update_order_item_route(
     order_item_id: int,
     update_schema: OrderItemUpdate,
     db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
 ):
     try:
         item = await get_order_item_or_raise(order_item_id, db)
+        await ensure_order_access(item.order_id, user_id, db)
+        if update_schema.order_id is not None:
+            await ensure_order_access(update_schema.order_id, user_id, db)
         updated = await update_order_item(item, update_schema, db)
     except OrderItemNotFoundError:
         raise not_found(order_item_id) from None
@@ -59,9 +75,14 @@ async def update_order_item_route(
 
 
 @router.delete("/delete/{order_item_id}", response_model=OrderItemResponse)
-async def delete_order_item_route(order_item_id: int, db: DatabaseSession):
+async def delete_order_item_route(
+    order_item_id: int,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
     try:
         item = await get_order_item_or_raise(order_item_id, db)
+        await ensure_order_access(item.order_id, user_id, db)
         deleted = await delete_order_item(item, db)
     except OrderItemNotFoundError:
         raise not_found(order_item_id) from None

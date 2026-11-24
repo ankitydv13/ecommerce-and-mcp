@@ -9,6 +9,11 @@ class Customer(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class CustomerResponse(Customer):
+    id: int
+
+
 class CustomerUpdate(BaseModel):
     name: str | None = None
     email: EmailStr | None = None

@@ -76,6 +76,18 @@ class User(Base):
     created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now(UTC) , nullable=False)
     chat_session : Mapped[list["ChatSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
+
+class UserCustomerLink(Base):
+    __tablename__ = "user_customer_links"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("customer.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+
+
 class ChatSession(Base):
     __tablename__ = "chat_session"
 
@@ -96,7 +108,6 @@ class ChatMessages(Base):
     content : Mapped[str] = mapped_column(Text,nullable=False)
     created_at : Mapped[datetime] = mapped_column(DateTime(timezone=True) , default=lambda : datetime.now())
     session : Mapped["ChatSession"] = relationship(back_populates="messages")
-
 
 
 

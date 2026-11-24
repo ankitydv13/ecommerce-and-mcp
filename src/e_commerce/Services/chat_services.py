@@ -1,9 +1,12 @@
 import uuid
-from e_commerce.database  import model
-from typing import Annotated
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
-async def new_session(user_id:int,db):
-    chat_session_id = str(uuid.uuid4())
+from e_commerce.database import model
+
+
+async def new_session(user_id: int, db) -> str:
+    chat_session_id = uuid.uuid4()
     
     #TODO: Generate the title of the chat on first query of the user 
     title = "new_chat"
@@ -12,14 +15,24 @@ async def new_session(user_id:int,db):
         title  =title,
         session_id = chat_session_id
     )
-    await  db.add(chat_session)
+    db.add(chat_session)
     await db.commit()
-    await db.refresh()
+    await db.refresh(chat_session)
 
-    return chat_session_id
+    return str(chat_session_id)
 
-async def get_chat_content(session_id:str,db):
-    chat_session = await db.get(model.ChatSession,session_id)
+
+async def get_chat_content(session_id: str, db, user_id: int):
+    result = await db.execute(
+        select(model.ChatSession)
+        .options(selectinload(model.ChatSession.messages))
+        .where(
+            model.ChatSession.user_id == user_id,
+            model.ChatSession.session_id == uuid.UUID(session_id),
+        )
+    )
+    chat_session = result.scalar_one_or_none()
+
     if chat_session is None:
         return None
     messages = chat_session.messages
@@ -33,3 +46,18 @@ async def get_chat_content(session_id:str,db):
         for message in messages
     ]
     return result
+
+async def get_all_session(user_id:int, db):
+    result = await db.execute(
+        select(model.ChatSession)
+        .where(model.ChatSession.user_id == user_id)
+    )
+    chat_sessions = result.scalars().all()
+    return [
+        {
+            "session_id": session.session_id,
+            "title": session.title,
+            "created_at": session.created_at
+        }
+        for session in chat_sessions
+    ]

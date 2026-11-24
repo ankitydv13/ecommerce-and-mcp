@@ -51,6 +51,60 @@ async def create_customer(customer_data: Customer, db: AsyncSession) -> model.Cu
     return customer
 
 
+async def create_customer_profile(
+    customer_data: Customer,
+    user_id: int,
+    db: AsyncSession,
+) -> model.Customer:
+    link = await db.get(model.UserCustomerLink, user_id)
+    if link is not None:
+        raise CustomerAlreadyLinkedError(user_id)
+
+    try:
+        customer = model.Customer(**customer_data.model_dump())
+        db.add(customer)
+        await db.flush()
+        db.add(model.UserCustomerLink(user_id=user_id, customer_id=customer.id))
+        await db.commit()
+        await db.refresh(customer)
+    except Exception:
+        await db.rollback()
+        logger.exception("Failed to create customer profile for user id=%s", user_id)
+        raise
+
+    return customer
+
+
+async def link_customer_to_user(
+    customer_id: int,
+    user_id: int,
+    db: AsyncSession,
+) -> None:
+    if await db.get(model.Customer, customer_id) is None:
+        raise CustomerNotFoundError(customer_id)
+    if await db.get(model.User, user_id) is None:
+        raise LinkedUserNotFoundError(user_id)
+    if await db.get(model.UserCustomerLink, user_id) is not None:
+        raise CustomerAlreadyLinkedError(user_id)
+
+    link = model.UserCustomerLink(user_id=user_id, customer_id=customer_id)
+    db.add(link)
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.exception("Failed to link customer id=%s to user id=%s", customer_id, user_id)
+        raise
+
+
+class CustomerAlreadyLinkedError(Exception):
+    """Raised when a user already has a customer profile."""
+
+
+class LinkedUserNotFoundError(Exception):
+    """Raised when the account to be linked does not exist."""
+
+
 async def update_customer(
     customer: model.Customer,
     update_data: CustomerUpdate,

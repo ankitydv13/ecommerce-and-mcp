@@ -1,34 +1,41 @@
-from fastapi import APIRouter , Depends , HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
 from typing import Annotated
-from e_commerce.schemas.schema import Token , Signup
-from e_commerce.database.session import get_db
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from e_commerce.Services.AuthServices import authenticate_user , create_access_token
-from datetime import UTC , datetime , timedelta
-from e_commerce.Services.UserServices import create_user
+
+from e_commerce.database.session import get_db
+from e_commerce.schemas.schema import Signup, Token
+from e_commerce.Services.AuthServices import authenticate_user, create_access_token
+from e_commerce.Services.UserServices import (
+    UsernameAlreadyExistsError,
+    create_user,
+)
 
 router = APIRouter()
 DatabaseSession = Annotated[AsyncSession, Depends(get_db)]
 
 @router.post("/token")
-async def login_for_access_token(db:DatabaseSession,form_data : Annotated[OAuth2PasswordRequestForm,Depends()])->Token:
+async def login_for_access_token(
+    db: DatabaseSession,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+) -> Token:
     user = await authenticate_user(db,form_data.username, form_data.password)
-
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect user named or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token = await create_access_token(data= {"sub":user.username})
-    return Token(access_token=access_token,token_type="bearer")
+    access_token = create_access_token(user_id=user.id)
+    return Token(access_token=access_token, token_type="bearer")
 
 @router.post("/signup")
-async def signup(db: DatabaseSession ,signup:Signup):
-    new_username = await create_user(db,signup)
-    access_token = await create_access_token(data= {"sub":new_username})
-    return Token(access_token=access_token,token_type="bearer")
+async def signup(db: DatabaseSession, signup: Signup) -> Token:
+    try:
+        new_user = await create_user(db, signup)
+    except UsernameAlreadyExistsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already exists",
+        ) from None
+
+    access_token = create_access_token(user_id=new_user.id)
+    return Token(access_token=access_token, token_type="bearer")
 
     

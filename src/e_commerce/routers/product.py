@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from e_commerce.Services.AuthServices import get_current_user
+from e_commerce.Services.authorization_services import ensure_admin
 from e_commerce.database.session import get_db
 from e_commerce.schemas.schema import ProductCreate, ProductResponse, ProductUpdate
 from e_commerce.Services.product_services import (
@@ -20,7 +22,11 @@ def not_found(product_id: int) -> HTTPException:
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
-async def get_product(product_id: int, db: DatabaseSession):
+async def get_product(
+    product_id: int,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
     try:
         product = await get_product_or_raise(product_id, db)
     except ProductNotFoundError:
@@ -29,7 +35,12 @@ async def get_product(product_id: int, db: DatabaseSession):
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-async def add_product(product: ProductCreate, db: DatabaseSession):
+async def add_product(
+    product: ProductCreate,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    ensure_admin(user_id)
     try:
         created = await create_product(product, db)
     except IntegrityError:
@@ -38,7 +49,13 @@ async def add_product(product: ProductCreate, db: DatabaseSession):
 
 
 @router.patch("/patch/{product_id}", response_model=ProductResponse)
-async def update_product_route(product_id: int, update_schema: ProductUpdate, db: DatabaseSession):
+async def update_product_route(
+    product_id: int,
+    update_schema: ProductUpdate,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    ensure_admin(user_id)
     try:
         product = await get_product_or_raise(product_id, db)
         updated = await update_product(product, update_schema, db)
@@ -50,7 +67,12 @@ async def update_product_route(product_id: int, update_schema: ProductUpdate, db
 
 
 @router.delete("/delete/{product_id}", response_model=ProductResponse)
-async def delete_product_route(product_id: int, db: DatabaseSession):
+async def delete_product_route(
+    product_id: int,
+    db: DatabaseSession,
+    user_id: int = Depends(get_current_user),
+):
+    ensure_admin(user_id)
     try:
         product = await get_product_or_raise(product_id, db)
         deleted = await delete_product(product, db)

@@ -1,21 +1,20 @@
-from typing import Annotated
-from fastapi.security import OAuth2PasswordBearer , OAuth2PasswordRequestForm
-from fastapi import Depends
+from datetime import datetime, timedelta, timezone
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pwdlib import PasswordHash
-from e_commerce.database import model
-from fastapi import HTTPException , status
-from datetime import datetime , UTC , timedelta
-import jwt
 
-SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+from e_commerce.Config.setting import setting
+from e_commerce.database import model
+from e_commerce.database.session import get_db
 
 password_hash = PasswordHash.recommended()
 
-oauth2_schema = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+dummy_password_hash = password_hash.hash("invalid-login-placeholder")
 
 def get_hash_password(password:str):
     return password_hash.hash(password)
@@ -24,30 +23,64 @@ def verify_password(plain_password:str,hash_password:str) -> bool:
     return password_hash.verify(plain_password,hash_password)
 
 async def authenticate_user(db:AsyncSession, username:str, password:str):
-    user = await get_user_by_username(db,username)
-    hashed_password = user.hash_password
-    plain_password = password
+    user = await get_user_by_username(db, username)
+    hashed_password = user.hash_password if user is not None else dummy_password_hash
+    password_is_valid = verify_password(password, hashed_password)
 
-    verify = verify_password(plain_password,hashed_password)
-
-    if not verify:
-        raise HTTPException(status_code=404,detail="username or password is wrong")
+    if user is None or not password_is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 
-async def create_access_token(data:dict):
-    access_expire_time =  datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = data.copy()
+def create_access_token(user_id: int, expires_minutes: int = 30) -> str:
+    now = datetime.now(timezone.utc)
 
-    to_encode.update({'exp':access_expire_time})
-    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    payload = {
+        "sub": str(user_id),
+        "iat": now,
+        "exp": now + timedelta(minutes=expires_minutes),
+        "iss": setting.jwt_issuer,
+        "aud": setting.jwt_audience,
+    }
 
-    return encoded_jwt
+    return jwt.encode(
+        payload,
+        setting.jwt_secret_key,
+        algorithm=setting.jwt_algorithm,
+    )
 
-async def get_user_by_username(db,username:str):
-    result = await db.execute(select(model.User).where(model.User.username==username))
+
+async def get_current_user(
+    token: str = Depends(oauth2_schema),
+    db: AsyncSession = Depends(get_db),
+) -> int:
+    try:
+        payload = jwt.decode(
+            token,
+            setting.jwt_secret_key,
+            algorithms=[setting.jwt_algorithm],
+            audience=setting.jwt_audience,
+            issuer=setting.jwt_issuer,
+            options={"require": ["sub", "exp", "iat", "iss", "aud"]},
+        )
+        user_id = int(payload["sub"])
+        if user_id <= 0 or await db.get(model.User, user_id) is None:
+            raise jwt.InvalidTokenError("Unknown user")
+        return user_id
+    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+async def get_user_by_username(db: AsyncSession, username: str) -> model.User | None:
+    result = await db.execute(
+        select(model.User).where(model.User.username == username)
+    )
     user = result.scalar_one_or_none()
-    # user = await db.get(entity=model.User,ident=username)
-    if user is None:
-        raise HTTPException(status_code=404,detail="username or password is wrong ")
     return user
