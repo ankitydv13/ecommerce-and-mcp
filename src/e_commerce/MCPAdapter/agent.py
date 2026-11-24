@@ -1,3 +1,5 @@
+import os
+
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.mcp import MCPAdapter
@@ -16,7 +18,7 @@ class Agent:
         self = cls()
 
         self._adapter = MCPAdapter(
-            "http://127.0.0.1:8001/mcp"
+            os.getenv("ECOMMERCE_MCP_URL", "http://127.0.0.1:8003/mcp")
         )
 
         await self._adapter.__aenter__()
